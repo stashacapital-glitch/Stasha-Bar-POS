@@ -211,6 +211,13 @@ export default function Home() {
                 <div className="bg-white px-4 py-2 rounded-xl shadow text-gray-600 font-mono text-sm hidden md:block">
                   {dateStr} | {timeStr}
                 </div>
+                {/* NEW: Admin Button */}
+                <button 
+                    onClick={() => router.push('/admin')}
+                    className="bg-purple-100 text-purple-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-purple-200 transition-colors"
+                >
+                    Admin
+                </button>
                 <button 
                     onClick={signOut}
                     className="bg-red-100 text-red-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-200 transition-colors"
