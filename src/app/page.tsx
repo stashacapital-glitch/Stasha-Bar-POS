@@ -76,7 +76,11 @@ export default function Home() {
             .order('created_at', { ascending: false });
         
         if (data) {
-            const ordersWithTotals = data.map(order => ({ ...order, total_price: order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) }));
+            // FIX: Added types to reduce parameters to solve build error
+            const ordersWithTotals = data.map(order => ({ 
+                ...order, 
+                total_price: order.items.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0) 
+            }));
             setTables(ordersWithTotals);
         }
     } catch (e) { console.error(e); }
@@ -191,7 +195,6 @@ export default function Home() {
   const currentTable = tables.find(t => t.id === selectedTableId);
   const currentItems = currentTable?.items || [];
   const totalPrice = currentItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const totalItems = currentItems.reduce((sum, item) => sum + item.quantity, 0);
   const categories = ['All', ...new Set(menuItems.map(item => item.category))];
   const filteredMenu = activeCategory === 'All' ? menuItems : menuItems.filter(item => item.category === activeCategory);
 
@@ -263,17 +266,8 @@ export default function Home() {
                 {filteredMenu.map(item => {
                     const stock = Math.max(0, item.stock_quantity);
                     return (
-                        <button 
-                            key={item.id} 
-                            onClick={() => addToOrder(item.id)} 
-                            disabled={stock <= 0} 
-                            className={`${CATEGORY_COLORS[item.category] || 'bg-gray-500'} text-white p-3 rounded-lg flex flex-col items-center justify-center aspect-square relative ${stock <= 0 ? 'opacity-40' : ''}`}
-                        >
-                            {/* --- FIXED STOCK DISPLAY --- */}
-                            <div className="absolute top-1 right-1 bg-black/30 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
-                                {stock}
-                            </div>
-                            
+                        <button key={item.id} onClick={() => addToOrder(item.id)} disabled={stock <= 0} className={`${CATEGORY_COLORS[item.category] || 'bg-gray-500'} text-white p-3 rounded-lg flex flex-col items-center justify-center aspect-square relative ${stock <= 0 ? 'opacity-40' : ''}`}>
+                            <div className="absolute top-1 right-1 bg-black/30 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">{stock}</div>
                             <span className="text-2xl mb-1">{item.emoji}</span>
                             <p className="font-bold text-sm text-center leading-tight">{item.name}</p>
                             <p className="text-[11px] opacity-90 mt-1 font-bold">{formatMoney(item.price)}</p>
