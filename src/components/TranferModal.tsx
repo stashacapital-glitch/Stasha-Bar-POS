@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 import { useState, useEffect } from 'react';
 import { formatMoney } from '@/lib/utils';
 
@@ -16,7 +16,6 @@ export default function TransferModal({ currentTableId, onClose, onSuccess }: Tr
     const savedTables = localStorage.getItem('pos_tables_data');
     if (savedTables) {
       const allTables = JSON.parse(savedTables);
-      // Filter out the current table
       setTables(allTables.filter((t: any) => t.id !== currentTableId));
     }
   }, [currentTableId]);
@@ -28,7 +27,6 @@ export default function TransferModal({ currentTableId, onClose, onSuccess }: Tr
     if (!savedTables) return;
     let allTables = JSON.parse(savedTables);
 
-    // Find Source and Target
     const sourceIdx = allTables.findIndex((t: any) => t.id === currentTableId);
     const targetIdx = allTables.findIndex((t: any) => t.id === Number(selectedTable));
 
@@ -37,22 +35,17 @@ export default function TransferModal({ currentTableId, onClose, onSuccess }: Tr
     const sourceTable = allTables[sourceIdx];
     const targetTable = allTables[targetIdx];
 
-    // Check if target is open (usually better to transfer to open table or merge)
-    // Here we will MERGE if target has items, or just move if empty
-    
     const newOrder = [...targetTable.order || [], ...sourceTable.order || []];
     const newTotal = newOrder.reduce((sum: number, i: any) => sum + (i.price * i.qty), 0);
 
-    // Update Target
     allTables[targetIdx] = {
       ...targetTable,
       order: newOrder,
       total: newTotal,
       status: 'occupied',
-      waiter: sourceTable.waiter // Keep original waiter or update?
+      waiter: sourceTable.waiter
     };
 
-    // Clear Source
     allTables[sourceIdx] = {
       ...sourceTable,
       order: [],
