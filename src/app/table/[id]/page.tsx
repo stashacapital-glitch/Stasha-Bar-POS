@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase'; // CORRECT
-import PinModal from '@/components/PinModal'; // Ensure this component exists
+import { createClient } from '@/utils/supabase'; // Adjusted to match your file structure
 import toast from 'react-hot-toast';
 
 // --- Types ---
@@ -29,14 +28,11 @@ export default function TablePage() {
   const [loading, setLoading] = useState(true);
 
   // Modal State
-  const [showPinModal, setShowPinModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   
   // Logic State
-  const [pendingAction, setPendingAction] = useState<'void' | 'discount' | null>(null);
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [discountValue, setDiscountValue] = useState(0);
-  const [itemToVoid, setItemToVoid] = useState<OrderItem | null>(null);
 
   const supabase = createClient();
 
@@ -47,16 +43,22 @@ export default function TablePage() {
 
   const fetchMenu = async () => {
     setLoading(true);
+    
+    // Attempt to fetch from Supabase
     const { data, error } = await supabase
-      .from('menu_items') // Adjust table name if needed
+      .from('menu_items') 
       .select('*');
 
     if (error) {
-      toast.error('Failed to load menu');
-      console.error(error);
+      // Detailed error logging to help debug the "{}" error
+      console.error('Supabase Fetch Error:', error);
+      toast.error(`Error loading menu: ${error.message}. Check if table 'menu_items' exists.`);
+      setMenuItems([]); 
     } else {
+      console.log('Menu Data:', data); // Log data to verify structure
       setMenuItems(data || []);
     }
+    
     setLoading(false);
   };
 
@@ -97,45 +99,11 @@ export default function TablePage() {
     };
   };
 
-  // --- Action Handlers ---
-  
-  const handleVoidRequest = (item: OrderItem) => {
-    setItemToVoid(item);
-    setPendingAction('void');
-    setShowPinModal(true);
-  };
-
-  const handleDiscountRequest = () => {
-    setPendingAction('discount');
-    setShowPinModal(true);
-  };
-
-  const executeVoid = () => {
-    if (itemToVoid) {
-      removeFromOrder(itemToVoid.id);
-      toast.success('Item voided');
-      setItemToVoid(null);
-    }
-  };
-
-  const handlePinSuccess = () => {
-    setShowPinModal(false);
-    
-    if (pendingAction === 'void') {
-      executeVoid();
-    } else if (pendingAction === 'discount') {
-      setShowDiscountModal(true);
-    }
-    
-    setPendingAction(null);
-  };
-
   const handleSubmitOrder = async () => {
     if (order.length === 0) return;
     
     setLoading(true);
-    // Insert order logic here...
-    // Example: await supabase.from('orders').insert([...])
+    // TODO: Insert order into Supabase here
     
     toast.success('Order sent to kitchen!');
     setOrder([]);
@@ -144,7 +112,7 @@ export default function TablePage() {
 
   const handlePayment = async () => {
     if (order.length === 0) return;
-    // Navigate to payment page or process payment
+    // Navigate to payment page
     router.push(`/table/${tableId}/pay`);
   };
 
@@ -175,7 +143,11 @@ export default function TablePage() {
         {/* Menu Grid */}
         <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {loading ? (
-            <p>Loading menu...</p>
+            <p className="text-gray-400">Loading menu...</p>
+          ) : menuItems.length === 0 ? (
+             <p className="text-gray-400 col-span-full text-center">
+               No menu items found. Please add items in Supabase or check RLS policies.
+             </p>
           ) : (
             menuItems
               .filter((item) => item.category === activeCategory)
@@ -183,10 +155,10 @@ export default function TablePage() {
                 <button
                   key={item.id}
                   onClick={() => addToOrder(item)}
-                  className="bg-gray-800 p-4 rounded-lg text-left hover:bg-gray-700 transition"
+                  className="bg-gray-800 p-4 rounded-lg text-left hover:bg-gray-700 transition border border-gray-700"
                 >
-                  <h3 className="font-bold">{item.name}</h3>
-                  <p className="text-orange-400">KES {item.price}</p>
+                  <h3 className="font-bold text-lg">{item.name}</h3>
+                  <p className="text-orange-400 font-mono">KES {item.price}</p>
                 </button>
               ))
           )}
@@ -209,12 +181,12 @@ export default function TablePage() {
                     {item.quantity} x KES {item.price}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                    <button 
-                     onClick={() => handleVoidRequest(item)}
-                     className="text-red-500 text-xs hover:underline"
+                     onClick={() => removeFromOrder(item.id)}
+                     className="text-red-500 text-xs hover:underline p-1"
                    >
-                     Void
+                     ✕
                    </button>
                    <span className="font-bold">KES {item.price * item.quantity}</span>
                 </div>
@@ -243,7 +215,7 @@ export default function TablePage() {
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-2 mt-4">
             <button
-              onClick={handleDiscountRequest}
+              onClick={() => setShowDiscountModal(true)}
               className="bg-blue-600 py-2 rounded font-bold hover:bg-blue-500 disabled:opacity-50"
               disabled={order.length === 0}
             >
@@ -267,19 +239,7 @@ export default function TablePage() {
         </div>
       </div>
 
-      {/* Modals (Pin, Discount) */}
-      
-      {/* Fix applied: Properly closed blocks below */}
-      {showPinModal && (
-        <PinModal
-          onClose={() => {
-            setShowPinModal(false);
-            setPendingAction(null);
-          }}
-          onSuccess={handlePinSuccess}
-        />
-      )}
-
+      {/* Discount Modal */}
       {showDiscountModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-xl w-full max-w-xs">

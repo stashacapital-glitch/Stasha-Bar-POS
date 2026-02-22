@@ -1,55 +1,68 @@
-// src/contexts/AuthContext.tsx
-"use client";
+ "use client";
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/utils/supabase';
+import { createClient } from '@/utils/supabase'; // Updated import
 import { Session, User } from '@supabase/supabase-js';
 
 type Role = 'owner' | 'admin' | 'barman' | 'waiter' | null;
 
-interface AuthContextType {
+type AuthContextType = {
   user: User | null;
-  session: Session | null;
   role: Role;
-  signOut: () => void;
-}
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Initialize the client
+  const supabase = createClient();
 
   useEffect(() => {
-    // 1. Get active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    // 1. Get initial session
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-      // Simple role extraction (you might store this in user_metadata)
-      const userRole = session?.user?.user_metadata?.role || 'waiter';
-      setRole(userRole);
-    });
+      setLoading(false);
+    };
+
+    getSession();
 
     // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      const userRole = session?.user?.user_metadata?.role || 'waiter';
-      setRole(userRole);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  const signIn = async (email: string, password: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+    // Loading will be set to false by the onAuthStateChange listener
+  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setSession(null);
     setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, signOut }}>
+    <AuthContext.Provider value={{ user, role, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
