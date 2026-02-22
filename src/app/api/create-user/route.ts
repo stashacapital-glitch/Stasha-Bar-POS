@@ -1,44 +1,44 @@
-import { createClient } from '@supabase/supabase-js';
+ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! 
-);
+// Initialize Supabase Client for Server-Side usage
+// Ensure your .env.local or Vercel Env Vars have these set
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request: Request) {
-  const { email, pin, role, fullName } = await request.json();
+  try {
+    const body = await request.json();
+    const { email, password, role, full_name } = body;
 
-  if (!email || !pin || !role || !fullName) {
-    return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    // 1. Create user in Supabase Auth
+    const { data: { user }, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (authError) {
+      return NextResponse.json({ error: authError.message }, { status: 400 });
+    }
+
+    // 2. Create profile in 'users' table (if you have one)
+    if (user) {
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert([{ id: user.id, email, role, full_name }]);
+
+      if (profileError) {
+        // Even if profile fails, user is created in auth, handle appropriately
+        console.error('Profile creation error:', profileError);
+      }
+    }
+
+    return NextResponse.json({ message: 'User created successfully', user }, { status: 200 });
+
+  } catch (error) {
+    console.error('Server error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-
-  // 1. Create Auth User
-  const { data: user, error: userError } = await supabaseAdmin.auth.admin.createUser({
-    email: email,
-    password: pin,
-    email_confirm: true,
-    user_metadata: { role: role, full_name: fullName }
-  });
-
-  if (userError) {
-    return NextResponse.json({ error: userError.message }, { status: 400 });
-  }
-
-  // 2. Update Profile (Approval handled by trigger default, but we force false for waiters)
-  // The trigger creates the profile, we just update it to ensure consistency
-  const { error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .update({
-        full_name: fullName,
-        role: role,
-        approved: false // Needs Owner approval
-    })
-    .eq('id', user.user.id);
-
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 400 });
-  }
-
-  return NextResponse.json({ success: true, message: 'Staff created. Pending Approval.' });
 }
