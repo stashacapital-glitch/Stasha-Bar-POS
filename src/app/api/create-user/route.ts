@@ -1,19 +1,22 @@
- import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// Initialize Supabase Client for Server-Side usage
-// Ensure your .env.local or Vercel Env Vars have these set
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 export async function POST(request: Request) {
+  // 1. Initialize Supabase inside the function to avoid build-time errors
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({ error: 'Server configuration error: Missing Supabase credentials.' }, { status: 500 });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
     const body = await request.json();
     const { email, password, role, full_name } = body;
 
-    // 1. Create user in Supabase Auth
+    // 2. Create user in Supabase Auth
     const { data: { user }, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -23,15 +26,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: authError.message }, { status: 400 });
     }
 
-    // 2. Create profile in 'users' table (if you have one)
+    // 3. Create profile in 'users' table
     if (user) {
       const { error: profileError } = await supabase
         .from('users')
         .insert([{ id: user.id, email, role, full_name }]);
 
       if (profileError) {
-        // Even if profile fails, user is created in auth, handle appropriately
         console.error('Profile creation error:', profileError);
+        // We continue anyway because auth user was created
       }
     }
 
