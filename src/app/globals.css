@@ -1,19 +1,12 @@
- @import "tailwindcss";
+ @tailwind base;
+@tailwind components;
+@tailwind utilities;
 
- /* Print Styles for Z-Report */
-@media print {
-  body {
-    background-color: white !important;
-    -webkit-print-color-adjust: exact;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-
-  #z-report-area {
-    width: 100%;
-    box-shadow: none;
-    border: 1px solid #eee;
-  }
+/* Global Styles */
+body {
+  /* Fix for CSS warning: defines standard property for compatibility */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
+
+/* You can add other global custom styles below this line */
