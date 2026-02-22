@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase';
-import Receipt from '@/components/Receipt'; // Assuming this path is correct
+import Receipt from '@/components/Receipt';
 
 export default function BarPage() {
   const [tables, setTables] = useState<any[]>([]);
@@ -15,7 +15,6 @@ export default function BarPage() {
 
   const fetchTables = async () => {
     setLoading(true);
-    // Fetch tables and their orders
     const { data, error } = await supabase
       .from('tables')
       .select('*, orders(*)');
@@ -28,23 +27,19 @@ export default function BarPage() {
     setLoading(false);
   };
 
-  // Helper to calculate order totals
   const calculateReceiptData = (orderItems: any[]) => {
     if (!orderItems || orderItems.length === 0) {
       return { subTotal: 0, discount: 0, vat: 0, service: 0, total: 0 };
     }
 
-    // 1. Calculate Subtotal
     const subTotal = orderItems.reduce((sum: number, item: any) => {
       return sum + (item.price * item.quantity);
     }, 0);
 
-    // 2. Define Rates (Adjust these as needed for your business)
-    const discount = 0; // You can add discount logic here if you store it
-    const vatRate = 0.16; // 16% VAT
-    const serviceRate = 0.10; // 10% Service Charge
+    const discount = 0; 
+    const vatRate = 0.16; 
+    const serviceRate = 0.10; 
 
-    // 3. Calculate Totals
     const vat = subTotal * vatRate;
     const service = subTotal * serviceRate;
     const total = subTotal - discount + vat + service;
@@ -60,10 +55,11 @@ export default function BarPage() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tables.map((table) => {
-          // Assuming orders are stored in a relation or array
-          // You might need to adjust 'table.orders' based on your exact Supabase structure
           const orderItems = table.orders || [];
           const receiptData = calculateReceiptData(orderItems);
+          
+          // FIX: Generate a date string for the receipt
+          const currentDate = new Date().toLocaleString();
 
           return (
             <div key={table.id} className="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow">
@@ -88,6 +84,7 @@ export default function BarPage() {
                   vat={receiptData.vat}
                   service={receiptData.service}
                   total={receiptData.total}
+                  date={currentDate} // FIX: Added date prop
                 />
               </div>
             </div>
