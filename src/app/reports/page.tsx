@@ -1,173 +1,102 @@
  "use client";
-
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/utils/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import toast from 'react-hot-toast';
-
-type DailySale = { date: string; total: number; orders: number };
-type TopItem = { name: string; quantity: number; revenue: number };
+import Link from 'next/link';
+import { formatMoney } from '@/lib/utils';
 
 export default function ReportsPage() {
-  const { user, signOut } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const [topItems, setTopItems] = useState<TopItem[]>([]);
-  const [dailySales, setDailySales] = useState<DailySale[]>([]);
-  
-  // Filters
-  const [dateRange, setDateRange] = useState('7'); // Last 7 days
+  const [sales, setSales] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [plan, setPlan] = useState('Basic');
+  const [activeTab, setActiveTab] = useState('overview'); // overview or audit
 
   useEffect(() => {
-    if (!user) router.push('/login');
-    if (user) fetchReportData();
-  }, [user, dateRange]);
-
-  const fetchReportData = async () => {
-    setLoading(true);
+    const activePlan = localStorage.getItem('activePlan') || 'Basic';
+    setPlan(activePlan);
     
-    // 1. Total Stats
-    const { data: orders } = await supabase.from('orders').select('total_price, created_at').eq('status', 'paid');
-    if (orders) {
-        setTotalOrders(orders.length);
-        setTotalRevenue(orders.reduce((sum, o) => sum + o.total_price, 0));
+    const history = JSON.parse(localStorage.getItem('sales_history') || '[]');
+    setSales(history.reverse());
 
-        // Process Daily Sales for Chart
-        const daysAgo = new Date();
-        daysAgo.setDate(daysAgo.getDate() - parseInt(dateRange));
-        
-        const recentOrders = orders.filter(o => new Date(o.created_at) >= daysAgo);
-        
-        // Group by Date
-        const grouped: Record<string, { total: number; orders: number }> = {};
-        recentOrders.forEach(o => {
-            const date = new Date(o.created_at).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
-            if (!grouped[date]) grouped[date] = { total: 0, orders: 0 };
-            grouped[date].total += o.total_price;
-            grouped[date].orders += 1;
-        });
-        
-        setDailySales(Object.entries(grouped).map(([date, val]) => ({ date, ...val })).reverse());
-    }
+    const expData = JSON.parse(localStorage.getItem('business_expenses') || '[]');
+    setExpenses(expData);
+  }, []);
 
-    // 2. Top Selling Items
-    const { data: itemSales } = await supabase.from('order_items').select('name, quantity, price, orders!inner(status)').eq('orders.status', 'paid');
-    if (itemSales) {
-        const itemMap: Record<string, { quantity: number; revenue: number }> = {};
-        itemSales.forEach((item: any) => {
-            if (!itemMap[item.name]) itemMap[item.name] = { quantity: 0, revenue: 0 };
-            itemMap[item.name].quantity += item.quantity;
-            itemMap[item.name].revenue += (item.price * item.quantity);
-        });
-        
-        const sorted = Object.entries(itemMap)
-            .map(([name, val]) => ({ name, ...val }))
-            .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 5);
-            
-        setTopItems(sorted);
-    }
+  // Calculations
+  const totalSales = sales.filter(s => s.paymentMethod !== 'Reception Payment').reduce((sum, s) => sum + (s.total || 0), 0);
+  const totalCash = sales.filter(s => s.paymentMethod === 'Cash').reduce((sum, s) => sum + (s.total || 0), 0);
+  const totalMpesa = sales.filter(s => s.paymentMethod === 'M-Pesa').reduce((sum, s) => sum + (s.total || 0), 0);
+  
+  // NEW: Expense Totals
+  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  
+  // NEW: Net Profit
+  const netProfit = totalSales - totalExpenses;
 
-    setLoading(false);
-  };
-
-  if (!user) return null;
+  if (plan === 'Basic') {
+    return (
+      <main className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-8">
+        <h1 className="text-2xl font-bold text-red-500 mb-4">Feature Not Available</h1>
+        <p className="text-gray-400 mb-6">Financial Reports are not available on the Basic plan.</p>
+        <Link href="/pos" className="bg-blue-600 px-6 py-2 rounded">Back to Tables</Link>
+      </main>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-extrabold text-gray-800">Business Reports</h1>
-            <p className="text-gray-500">Financial Performance Overview</p>
-          </div>
-          <div className="flex gap-2">
-            <select 
-                value={dateRange} 
-                onChange={(e) => setDateRange(e.target.value)}
-                className="p-2 border rounded-lg text-sm bg-white"
-            >
-                <option value="1">Today</option>
-                <option value="7">Last 7 Days</option>
-                <option value="30">Last 30 Days</option>
-                <option value="365">This Year</option>
-            </select>
-            <button onClick={() => router.push('/admin')} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700">← Admin</button>
-            <button onClick={signOut} className="bg-red-100 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-200">Logout</button>
-          </div>
-        </div>
+    <main className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="max-w-5xl mx-auto">
+        <header className="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
+          <h1 className="text-3xl font-bold text-purple-400">Financial Overview</h1>
+          <Link href="/pos" className="bg-gray-600 px-4 py-2 rounded text-sm hover:bg-gray-500">Back to Tables</Link>
+        </header>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-500">
-            <p className="text-gray-500 text-sm uppercase font-bold">Total Revenue</p>
-            <p className="text-4xl font-extrabold text-gray-800 mt-2">KES {totalRevenue.toFixed(2)}</p>
-            <p className="text-xs text-gray-400 mt-2">From {totalOrders} transactions</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500">
-            <p className="text-gray-500 text-sm uppercase font-bold">Average Order Value</p>
-            <p className="text-4xl font-extrabold text-gray-800 mt-2">KES {(totalOrders > 0 ? totalRevenue / totalOrders : 0).toFixed(2)}</p>
-            <p className="text-xs text-gray-400 mt-2">Per bill</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-purple-500">
-            <p className="text-gray-500 text-sm uppercase font-bold">Daily Average</p>
-            <p className="text-4xl font-extrabold text-gray-800 mt-2">KES {(totalRevenue / (parseInt(dateRange) || 1)).toFixed(2)}</p>
-            <p className="text-xs text-gray-400 mt-2">Last {dateRange} days</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Overview Tab */}
+        <div className="space-y-6">
             
-            {/* Daily Sales Chart (Simple Bar Visualization) */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">Sales Trend</h2>
-                <div className="space-y-3">
-                    {dailySales.length === 0 ? <p className="text-gray-400 text-center py-10">No data for this period</p> : 
-                     dailySales.map((day, i) => {
-                        const maxVal = Math.max(...dailySales.map(d => d.total), 1);
-                        const widthPercent = (day.total / maxVal) * 100;
-                        return (
-                            <div key={i} className="flex items-end gap-2 h-8">
-                                <span className="text-xs text-gray-500 w-12">{day.date}</span>
-                                <div className="flex-1 bg-gray-100 rounded h-full relative">
-                                    <div 
-                                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded"
-                                        style={{ width: `${widthPercent}%` }}
-                                    ></div>
-                                    <span className="absolute right-2 top-1 text-xs font-bold text-gray-700 z-10">KES {day.total.toFixed(0)}</span>
-                                </div>
-                            </div>
-                        );
-                    })}
+            {/* Top Row: Revenue & Profit */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-green-900 p-4 rounded-xl border border-green-600">
+                    <p className="text-sm text-gray-300">Total Revenue</p>
+                    <p className="text-2xl font-bold">KES {formatMoney(totalSales)}</p>
+                </div>
+                <div className="bg-red-900 p-4 rounded-xl border border-red-600">
+                    <p className="text-sm text-gray-300">Total Expenses</p>
+                    <p className="text-2xl font-bold">- KES {formatMoney(totalExpenses)}</p>
+                </div>
+                <div className={`p-4 rounded-xl border ${netProfit >= 0 ? 'bg-blue-900 border-blue-600' : 'bg-gray-800 border-gray-600'}`}>
+                    <p className="text-sm text-gray-300">Net Profit / Loss</p>
+                    <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        KES {formatMoney(netProfit)}
+                    </p>
                 </div>
             </div>
 
-            {/* Top Selling Items */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">Top Sellers</h2>
-                <div className="space-y-4">
-                    {topItems.map((item, i) => (
-                        <div key={i} className="flex items-center gap-4">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : 'bg-orange-400'}`}>
-                                {i + 1}
-                            </div>
-                            <div className="flex-1">
-                                <p className="font-bold text-gray-800">{item.name}</p>
-                                <p className="text-xs text-gray-500">{item.quantity} sold</p>
-                            </div>
-                            <p className="font-bold text-gray-700">KES {item.revenue.toFixed(2)}</p>
-                        </div>
-                    ))}
-                </div>
+            {/* Payment Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-gray-800 p-4 rounded-xl border border-gray-600">
+                <p className="text-xs text-gray-400">Cash Sales</p>
+                <p className="text-xl font-bold text-white">KES {formatMoney(totalCash)}</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-xl border border-gray-600">
+                <p className="text-xs text-gray-400">M-Pesa Sales</p>
+                <p className="text-xl font-bold text-white">KES {formatMoney(totalMpesa)}</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-xl border border-gray-600">
+                <p className="text-xs text-gray-400">Room Posts (Pending)</p>
+                <p className="text-xl font-bold text-white">KES {formatMoney(sales.filter(s => s.paymentMethod === 'Room Charge').reduce((sum, s) => sum + s.total, 0))}</p>
+              </div>
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="grid grid-cols-2 gap-4 mt-8">
+                <Link href="/audit" className="block w-full bg-gray-700 hover:bg-gray-600 py-3 rounded font-bold text-center">
+                    View Full Audit Trail
+                </Link>
+                <Link href="/expenses" className="block w-full bg-red-700 hover:bg-red-600 py-3 rounded font-bold text-center">
+                    Manage Expenses
+                </Link>
             </div>
         </div>
-
       </div>
-    </div>
+    </main>
   );
 }

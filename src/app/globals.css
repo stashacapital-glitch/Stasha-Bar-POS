@@ -1,1 +1,19 @@
  @import "tailwindcss";
+
+ /* Print Styles for Z-Report */
+@media print {
+  body {
+    background-color: white !important;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  #z-report-area {
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid #eee;
+  }
+}

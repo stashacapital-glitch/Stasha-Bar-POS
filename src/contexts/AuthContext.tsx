@@ -1,75 +1,64 @@
- 'use client';
-
+// src/contexts/AuthContext.tsx
+"use client";
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/utils/supabase';
 import { Session, User } from '@supabase/supabase-js';
 
 type Role = 'owner' | 'admin' | 'barman' | 'waiter' | null;
 
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
+  session: Session | null;
   role: Role;
-  loading: boolean;
-  approved: boolean;
   signOut: () => void;
-};
+}
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  role: null,
-  loading: true,
-  approved: false,
-  signOut: () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role>(null);
-  const [approved, setApproved] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Get active session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
+      // Simple role extraction (you might store this in user_metadata)
+      const userRole = session?.user?.user_metadata?.role || 'waiter';
+      setRole(userRole);
     });
 
+    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else { setRole(null); setApproved(false); setLoading(false); }
+      const userRole = session?.user?.user_metadata?.role || 'waiter';
+      setRole(userRole);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
-    setLoading(true);
-    const { data } = await supabase.from('profiles').select('role, approved').eq('id', userId).single();
-    
-    if (data) {
-      setRole(data.role);
-      setApproved(data.approved ?? false);
-    } else {
-      setRole(null);
-      setApproved(false);
-    }
-    setLoading(false);
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setSession(null);
     setRole(null);
-    setApproved(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, approved, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, signOut }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
