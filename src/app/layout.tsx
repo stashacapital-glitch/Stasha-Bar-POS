@@ -1,6 +1,6 @@
- import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css"; // <--- CRITICAL: This line loads all the styling
+import "./globals.css"; // <--- THIS LINE IS CRITICAL
 import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
